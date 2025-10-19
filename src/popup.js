@@ -5,20 +5,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const applyColorButton = document.getElementById('applyColorButton');
   const hoverViewCheckbox = document.getElementById('hoverViewCheckbox');
   const hoverEmoji = document.getElementById('hoverEmoji');
+  const hoverViewWrapper = document.getElementById('hoverViewWrapper');
 
-  chrome.storage.local.get(['isTheExtensionOn', 'textStyleSelected', 'lightBarColor', 'hoverUnblur'], (data) => {
-    const isOn = data.isTheExtensionOn || false;
-    const textStyle = data.textStyleSelected || 'as-is';
-    const lightBarColor = data.lightBarColor || '#008000';
-    const hoverUnblur = data.hoverUnblur !== undefined ? data.hoverUnblur : true;
+  chrome.storage.local.get(
+    ['isTheExtensionOn', 'textStyleSelected', 'lightBarColor', 'hoverUnblur', 'fallbackActive'],
+    (data) => {
+      const isOn = data.isTheExtensionOn || false;
+      const textStyle = data.textStyleSelected || 'as-is';
+      const lightBarColor = data.lightBarColor || '#008000';
+      const hoverUnblur = data.hoverUnblur !== undefined ? data.hoverUnblur : true;
+      const fallbackActive = data.fallbackActive || false;
 
+      updateButton(isOn);
+      styleSelector.value = textStyle;
+      colorPicker.value = lightBarColor;
+      hoverViewCheckbox.checked = hoverUnblur;
+      updateHoverEmoji(hoverUnblur);
 
-    updateButton(isOn);
-    styleSelector.value = textStyle;
-    colorPicker.value = lightBarColor;
-    hoverViewCheckbox.checked = hoverUnblur;
-    updateHoverEmoji(hoverUnblur);
-  });
+      if (fallbackActive) {
+        disableHoverViewSection();
+      }
+    }
+  );
 
   toggleButton.addEventListener('click', () => {
     const isCurrentlyOn = toggleButton.classList.contains('toggle-on');
@@ -53,6 +61,11 @@ document.addEventListener("DOMContentLoaded", () => {
     updateHoverEmoji(hoverViewCheckbox.checked);
   });
 
+  const advancedButton = document.getElementById('advancedButton');
+  advancedButton.addEventListener('click', () => {
+    window.location.href = "advanced.html";
+  });
+
   function updateHoverEmoji(isChecked) {
     hoverEmoji.textContent = isChecked ? "✓" : "✕";
   }
@@ -67,5 +80,40 @@ document.addEventListener("DOMContentLoaded", () => {
       toggleButton.classList.add('toggle-off');
       toggleButton.textContent = "OFF";
     }
+  }
+
+  function disableHoverViewSection() {
+    const accessibilityBox = document.querySelector('.checkbox-row');
+
+    let overlay = document.getElementById('imageBlurOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'imageBlurOverlay';
+      overlay.textContent = "Image blurring unavailable";
+      overlay.style.position = 'absolute';
+      overlay.style.top = 0;
+      overlay.style.left = 0;
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.background = 'rgba(200, 200, 200, 1)';
+      overlay.style.display = 'flex';
+      overlay.style.justifyContent = 'center';
+      overlay.style.alignItems = 'center';
+      overlay.style.color = '#555';
+      overlay.style.fontWeight = '600';
+      overlay.style.fontSize = '15px';
+      overlay.style.borderRadius = '5px';
+      overlay.style.zIndex = '10';
+      overlay.style.textAlign = 'center';
+      overlay.style.padding = '10px';
+      overlay.style.boxSizing = 'border-box';
+    }
+
+    accessibilityBox.style.position = 'relative';
+    accessibilityBox.appendChild(overlay);
+
+    hoverViewCheckbox.disabled = true;
+    applyColorButton.disabled = true;
+    hoverViewWrapper.style.opacity = 1;
   }
 });

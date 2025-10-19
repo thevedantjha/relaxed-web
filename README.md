@@ -1,5 +1,5 @@
 # Relaxed Web
-Make the internet a calmer place. Automatically rewrite toxic text, or blur images with unfriendly text thanks to Chrome built-in AI. Private with all processing on-device.
+Make the internet a calmer place. Automatically rewrite toxic text, or blur images with unfriendly text thanks to Chrome built-in AI, private with all processing on-device. Implement a hybrid strategy with cloud based Gemini AI for fallback during unavailability.
 
 ---
 
@@ -10,6 +10,7 @@ Make the internet a calmer place. Automatically rewrite toxic text, or blur imag
     - **Accessibility option** to customize the color of rewritten text for better visibility.
 - **Blur images** containing unfriendly text, using Google Chrome's Built-In on-device AI model [`Prompt API`](https://developer.chrome.com/docs/ai/prompt-api).
     - **Accessibility option** to toggle on/off hover to view blurred image.
+- **Hybrid fallback option** in case on-device models become unavailable using [`Gemini 2.5 Flash-Lite`](https://deepmind.google/models/gemini/flash-lite).
 - **Live scanning** for content loaded after page load.
 
 ---
@@ -18,7 +19,9 @@ Make the internet a calmer place. Automatically rewrite toxic text, or blur imag
 1. **Browser**
     - Latest version of Google Chrome.
     - APIs on browser
-        1. Go to [`chrome://flags/#rewriter-api-for-gemini-nano`](chrome://flags/#rewriter-api-for-gemini-nano) and select `Enable`.
+        1. Go to `chrome://flags/#rewriter-api-for-gemini-nano` and select `Enable`.
+        1. Go to `chrome://flags/#prompt-api-for-gemini-nano` and select `Enable`.
+        1. Go to `chrome://flags/#prompt-api-for-gemini-nano-multimodal-input` and select `Enable`.
         2. Relaunch Chrome.
 2. **System Requirements**
     - Windows 10/11, MacOS 13+, Linux, or ChromeOS 16389.0.0 and above.
@@ -39,7 +42,7 @@ Make the internet a calmer place. Automatically rewrite toxic text, or blur imag
 
 ---
 
-## 🛠️ Editing the Extension Code
+## 🛠️ Editing the Extension Code / Build
 
 > ⚠️ **Do not edit files inside the `build/` folder directly.**  
 > This folder is automatically generated and will be overwritten every time you run a build.
@@ -61,9 +64,12 @@ To make changes to the extension's code:
 ---
 
 ## 🔒 Privacy
-- Complete offline processing, no data sent to external sources.
-- No tracking.
-- No data collection.
+- Complete offline processing with Chrome built-in AI:
+    - No tracking.
+    - No data collection.
+- Otherwise ONLY if using cloud based hybrid fallback strategy:
+    - Toxic classified text is sent to Google Gemini servers.
+    - View how your date is being used: [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms#data-use-paid)
 
 ---
 

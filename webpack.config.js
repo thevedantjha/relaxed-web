@@ -12,10 +12,11 @@ const config = {
     entry: {
         background: {
             import: './src/background.js',
-            chunkLoading: `import-scripts`,
+            chunkLoading: 'import-scripts',
         },
         popup: './src/popup.js',
         content: './src/content.js',
+        advanced: './src/advanced.js',
     },
     output: {
         path: path.resolve(__dirname, 'build'),
@@ -25,19 +26,27 @@ const config = {
         new HtmlWebpackPlugin({
             template: './src/popup.html',
             filename: 'popup.html',
+            chunks: ['popup'],
         }),
+
+        new HtmlWebpackPlugin({
+            template: './src/advanced.html',
+            filename: 'advanced.html',
+            chunks: ['advanced'],
+        }),
+
         new CopyPlugin({
             patterns: [
                 {
-                    from: "public",
-                    to: "."
+                    from: 'public',
+                    to: '.',
                 },
                 {
-                    from: "src/popup.css",
-                    to: "popup.css"
-                }
+                    from: 'src/popup.css',
+                    to: 'popup.css',
+                },
             ],
-        })
+        }),
     ],
 };
 

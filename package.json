@@ -14,6 +14,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@google/genai": "^1.25.0",
     "@huggingface/transformers": "^3.7.3"
   }
 }
