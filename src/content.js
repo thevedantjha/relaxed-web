@@ -627,6 +627,12 @@ async function createImageSession() {
 async function processImageWithAI(img) {
   if (!img || !img.src) return;
 
+  if (img.naturalWidth < 70 || img.naturalHeight < 70) {
+    console.log(`⏭️ Skipping small image (${img.naturalWidth}x${img.naturalHeight})`, img.src);
+    img.classList.add(CHECKED_CLASS);
+    return;
+  }
+
   try {
     await ensureImageLightBarFor(img);
   } catch (err) {
