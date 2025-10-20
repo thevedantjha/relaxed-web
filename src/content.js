@@ -140,9 +140,16 @@ async function initializeRewriter() {
 
     console.log('Initializing Rewriter...');
 
+    const toneSetting = await new Promise(resolve => {
+      chrome.storage.local.get(['textStyleSelected'], result => {
+        resolve(result.textStyleSelected || 'as-is');
+      });
+    });
+
+
     rewriter = await Rewriter.create({
       sharedContext: 'ONLY rewriting toxic text to be not-toxic. Only output rewrite, no intro.',
-      tone: 'more-formal',
+      tone: toneSetting,
       format: 'plain-text',
       length: 'shorter',
       monitor(m) {
@@ -172,7 +179,7 @@ async function rewriteSentence(sentence) {
     const rw = await initializeRewriter();
     if (rw) {
       const rewritten = await rw.rewrite(sentence, {
-        context: "Rewrite so it's NOT toxic, ONLY be nicer."
+        context: "Rewrite so it's NOT toxic, ONLY be nicer. Sentence should keep the same meaning."
       });
 
       if (rewritten.length > sentence.length * 3.5) {
@@ -207,7 +214,7 @@ async function rewriteSentence(sentence) {
       const response = await geminiModel.generateContent({
         model: "gemini-2.5-flash-lite",
         config: {
-          systemInstruction: "You ONLY REWRITE text to be NOT toxic/offensive, and be nicer. You also rewrite text to be shorter. You include NO FORMATTING.",
+          systemInstruction: `You ONLY REWRITE text to be NOT toxic/offensive, and be nicer. You also rewrite text to be shorter and ${toneSetting}. Include NO FORMATTING.`,
         },
         contents: `Rewrite: ${sentence}`,
       });
@@ -524,62 +531,69 @@ function removeImageLightBar(img) {
 }
 
 function injectImageStyles() {
-  if (document.getElementById('image-blur-styles')) return;
+  const existingStyle = document.getElementById('image-blur-styles');
+  if (existingStyle) return;
 
-  const style = document.createElement('style');
-  style.id = 'image-blur-styles';
-  style.textContent = `
-        .${BLURRED_CLASS} {
-            filter: blur(8px);
-            transition: filter 0.2s ease-in-out;
-        }
-        .${BLURRED_CLASS}:hover {
-            filter: none;
-        }
-        .${CHECKED_CLASS} {
-            /* no visual change */
-        }
+  chrome.storage.local.get('hoverUnblur', (data) => {
+    const hoverUnblur = data.hoverUnblur !== false;
 
-        .extension-image-wrapper {
-            position: relative;
-            display: inline-block;
-            line-height: 0;
-        }
+    const style = document.createElement('style');
+    style.id = 'image-blur-styles';
 
-        .extension-image-lightbar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 34px;
-            pointer-events: none;
-            z-index: 9999;
-            background: linear-gradient(to bottom, rgba(0,128,0,0.6), rgba(0,128,0,0));
-            animation: extension-image-glow 1.5s infinite ease-in-out;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-        }
+    style.textContent = `
+      .${BLURRED_CLASS} {
+        filter: blur(8px);
+        transition: filter 0.2s ease-in-out;
+      }
+      ${hoverUnblur ? `.${BLURRED_CLASS}:hover { filter: none; }` : ''}
 
-        @keyframes extension-image-glow {
-          0% {
-            opacity: 0.85;
-          }
-          50% {
-            opacity: 1;
-          }
-          100% {
-            opacity: 0.85;
-          }
-        }
+      .${CHECKED_CLASS} {
+        /* no visual change */
+      }
 
-        .extension-image-wrapper img {
-            display: block;
-            max-width: 100%;
-            height: auto;
+      .extension-image-wrapper {
+        position: relative;
+        display: inline-block;
+        line-height: 0;
+      }
+
+      .extension-image-lightbar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 34px;
+        pointer-events: none;
+        z-index: 9999;
+        background: linear-gradient(to bottom, rgba(0,128,0,0.6), rgba(0,128,0,0));
+        animation: extension-image-glow 1.5s infinite ease-in-out;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+      }
+
+      @keyframes extension-image-glow {
+        0% {
+          opacity: 0.85;
         }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.85;
+        }
+      }
+
+      .extension-image-wrapper img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
     `;
-  document.head.appendChild(style);
+
+    document.head.appendChild(style);
+  });
 }
+
 
 async function fetchImageAsBlob(src) {
   try {
