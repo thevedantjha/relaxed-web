@@ -48,7 +48,6 @@ Make the internet a calmer place. Automatically rewrite toxic text, or blur imag
         2. This triggers Chrome built-in AI model download.
         3. Check **Model Status** again a few moments later to see if it's ready.
             - If it's ready, extension is ready to work.
-
 ---
 
 ## 🛠️ Editing the Extension Code / Build

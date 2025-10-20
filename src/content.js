@@ -141,7 +141,7 @@ async function initializeRewriter() {
     console.log('Initializing Rewriter...');
 
     rewriter = await Rewriter.create({
-      sharedContext: 'ONLY rewriting toxic text to be nice/harmless. Only output rewrite, no intro.',
+      sharedContext: 'ONLY rewriting toxic text to be not-toxic. Only output rewrite, no intro.',
       tone: 'more-formal',
       format: 'plain-text',
       length: 'shorter',
@@ -177,7 +177,7 @@ async function rewriteSentence(sentence) {
 
       if (rewritten.length > sentence.length * 3.5) {
         const secondTry = await rw.rewrite(sentence, {
-          context: "ONLY SAY THE REWRITE NO INTRO OR LEAD-IN REMOVE TOXICNESS"
+          context: "ONLY SAY THE REWRITE TO BE NOT TOXIC. NO INTRO OR LEAD-IN REMOVE TOXICNESS"
         });
 
         if (secondTry.length > sentence.length * 3.5) {
