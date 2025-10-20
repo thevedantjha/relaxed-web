@@ -84,4 +84,4 @@ MIT License
 - [Xenova/toxic-bert](https://huggingface.co/Xenova/toxic-bert) model
 - CMU School of Computer Science [bad-words.txt](https://www.cs.cmu.edu/~biglou/resources/bad-words.txt) (`bad_words.js` includes additional words)
 - [Gemini 2.5 Flash Image (Nano Banana)](https://aistudio.google.com/models/gemini-2-5-flash-image) for `icon.png`
-- [`Gemini 2.5 Flash-Lite`](https://deepmind.google/models/gemini/flash-lite) model
+- [Gemini 2.5 Flash-Lite](https://deepmind.google/models/gemini/flash-lite) model
