@@ -213,3 +213,69 @@ select {
 .checkbox-wrapper span {
   pointer-events: none;
 }
+
+.api-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+#apiKeyInput {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#apiKeyInput:focus {
+  border-color: #0f4274;
+  box-shadow: 0 0 4px rgba(15, 66, 116, 0.3);
+}
+
+#saveApiWrapper {
+  width: 50px;
+  height: 36px;
+  background-color: rgb(216, 215, 229);
+}
+
+.api-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#apiKeyInput {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#apiKeyInput:focus {
+  border-color: #0f4274;
+  box-shadow: 0 0 4px rgba(15, 66, 116, 0.3);
+}
+
+.small-checkmark-button {
+  background-color: #2b2b2b;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 16px;
+  padding: 6px 10px;
+  line-height: 1;
+  transition: background-color 0.3s ease;
+}
+
+.small-checkmark-button:hover {
+  background-color: #0f4274;
+}

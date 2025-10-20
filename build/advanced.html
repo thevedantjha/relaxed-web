@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relaxed Web - Advanced</title>
+  <link rel="stylesheet" href="popup.css" />
+<script defer src="advanced.js"></script></head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icons/icon.png" alt="Relaxed Web Icon" class="icon" />
+      <h1 class="title">Relaxed Web</h1>
+    </div>
+
+    <p class="description"><b>You can add a fallback mechanism in case Chrome built-in AI becomes unavailable.</b></p>
+    <p class="description">Go to <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a> to get an API Key. Free tier project should cost you no money, otherwise billing rates apply.</p>
+
+    <p class="note">Note: Rate limits per minute and day apply.</p>
+    <p class="note">Model: <a href="https://deepmind.google/models/gemini/flash-lite/" target="_blank">Gemini 2.5 Flash-Lite</a></p>
+
+    <label for="apiKeyInput">Google AI Studio API Key:</label>
+    <div class="api-input-row">
+      <input type="text" id="apiKeyInput" placeholder="Enter API Key" />
+      <button id="applyApiButton" class="small-checkmark-button">✔</button>
+    </div>
+
+    <button id="backButton" class="checkmark-button" style="margin-top: 25px;">
+      ← Back
+    </button>
+  </div>
+
+  <script src="advanced.js"></script>
+</body>
+</html>

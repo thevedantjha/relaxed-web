@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const toggleButton = document.getElementById('toggleButton');
   const styleSelector = document.getElementById('styleSelector');
   const colorPicker = document.getElementById('colorPicker');
@@ -6,6 +6,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const hoverViewCheckbox = document.getElementById('hoverViewCheckbox');
   const hoverEmoji = document.getElementById('hoverEmoji');
   const hoverViewWrapper = document.getElementById('hoverViewWrapper');
+
+  let promptApiAvailable = true;
+  if (!('LanguageModel' in self)) {
+    promptApiAvailable = false;
+  } else {
+    try {
+      const availability = await LanguageModel.availability();
+      promptApiAvailable = availability !== 'unavailable';
+    } catch (err) {
+      console.warn("Error checking prompt API availability:", err);
+      promptApiAvailable = false;
+    }
+  }
 
   chrome.storage.local.get(
     ['isTheExtensionOn', 'textStyleSelected', 'lightBarColor', 'hoverUnblur', 'fallbackActive'],
@@ -22,8 +35,12 @@ document.addEventListener("DOMContentLoaded", () => {
       hoverViewCheckbox.checked = hoverUnblur;
       updateHoverEmoji(hoverUnblur);
 
-      if (fallbackActive) {
+      if (!promptApiAvailable) {
+        chrome.storage.local.set({ fallbackActive: true });
         disableHoverViewSection();
+      } else {
+        chrome.storage.local.set({ fallbackActive: false });
+        enableHoverViewSection();
       }
     }
   );
@@ -89,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'imageBlurOverlay';
-      overlay.textContent = "Image blurring unavailable";
+      overlay.textContent = "Image blurring disabled (Requires Prompt API)";
       overlay.style.position = 'absolute';
       overlay.style.top = 0;
       overlay.style.left = 0;
@@ -99,9 +116,9 @@ document.addEventListener("DOMContentLoaded", () => {
       overlay.style.display = 'flex';
       overlay.style.justifyContent = 'center';
       overlay.style.alignItems = 'center';
-      overlay.style.color = '#555';
-      overlay.style.fontWeight = '600';
-      overlay.style.fontSize = '15px';
+      overlay.style.color = '#c42121ff';
+      overlay.style.fontWeight = '200';
+      overlay.style.fontSize = '10px';
       overlay.style.borderRadius = '5px';
       overlay.style.zIndex = '10';
       overlay.style.textAlign = 'center';
@@ -113,7 +130,16 @@ document.addEventListener("DOMContentLoaded", () => {
     accessibilityBox.appendChild(overlay);
 
     hoverViewCheckbox.disabled = true;
-    applyColorButton.disabled = true;
+    hoverViewWrapper.style.opacity = 1;
+  }
+
+  function enableHoverViewSection() {
+    const overlay = document.getElementById('imageBlurOverlay');
+    if (overlay && overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
+
+    hoverViewCheckbox.disabled = false;
     hoverViewWrapper.style.opacity = 1;
   }
 });

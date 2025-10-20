@@ -1,14 +1,26 @@
 import { BAD_WORDS } from './bad_words.js';
 import { GoogleGenAI } from "@google/genai";
 
+let geminiApiKey = null;
+let geminiModel = null;
+
+chrome.storage.local.get(["apiKey"], (result) => {
+  if (result.apiKey) {
+    geminiApiKey = result.apiKey;
+    geminiModel = new GoogleGenAI({ apiKey: geminiApiKey }).models;
+    console.log("✅ Gemini API key loaded.");
+  } else {
+    console.warn("⚠️ Gemini API key not found in storage.");
+  }
+});
+
+
 const BAD_WORDS_SET = new Set(BAD_WORDS.map(w => w.toLowerCase()));
 const rewriteCache = new Map();
 const processedSentencesPerElement = new WeakMap();
 
 let rewriter = null;
 let lmSession = null;
-let isUsingGeminiFallback = false;
-let geminiClient = null;
 let roundNumber = 1;
 let isTextRoundInProgress = false;
 let isImageRoundInProgress = false;
@@ -19,6 +31,7 @@ const TOXIC_SCORE_THRESHOLD = 0.7;
 
 const BLURRED_CLASS = 'chrome-ext-blurred-image';
 const CHECKED_CLASS = 'chrome-ext-checked-image';
+
 const imageTextCache = new Map();
 
 function splitIntoSentences(text) {
@@ -110,60 +123,43 @@ async function classifyDetectedText(text) {
   });
 }
 
-async function initializeGeminiFallback() {
-  if (isUsingGeminiFallback) return;
-  isUsingGeminiFallback = true;
-
-  chrome.storage.local.set({ fallbackActive: true });
-
-  lmSession = null;
-
-  const { apiKey } = await chrome.storage.local.get('apiKey');
-  if (!apiKey || apiKey.trim() === '') {
-    console.error('❌ Gemini fallback requires an API key. Please set one in advanced settings.');
-    return;
-  }
-
-  try {
-    geminiClient = new GoogleGenAI({ apiKey });
-    console.log('✅ Gemini fallback initialized.');
-  } catch (err) {
-    console.error('❌ Failed to initialize Gemini fallback:', err);
-  }
-}
-
 async function initializeRewriter() {
-  if (rewriter || isUsingGeminiFallback) return rewriter;
+  if (rewriter) return rewriter;
 
   if (!('Rewriter' in self)) {
-    console.warn('⚠️ Chrome Rewriter API not supported. Falling back to Gemini...');
-    await initializeGeminiFallback();
+    console.error('❌ Rewriter API not supported in this environment.');
     return null;
   }
 
   try {
     const availability = await Rewriter.availability();
     if (availability === 'unavailable') {
-      console.warn('⚠️ Chrome Rewriter API unavailable. Falling back to Gemini...');
-      await initializeGeminiFallback();
+      console.error('❌ Rewriter API unavailable.');
       return null;
     }
 
-    console.log('Initializing Chrome Rewriter...');
+    console.log('Initializing Rewriter...');
+
     rewriter = await Rewriter.create({
-      sharedContext: 'ONLY rewrite toxic text to be kind, short, and plain text.',
+      sharedContext: 'ONLY rewriting toxic text to be nice/harmless. Only output rewrite, no intro.',
       tone: 'more-formal',
       format: 'plain-text',
-      length: 'shorter'
+      length: 'shorter',
+      monitor(m) {
+        m.addEventListener("downloadprogress", e => {
+          try {
+            console.log(`Rewriter download progress: ${Math.round((e.loaded / e.total) * 100)}%`);
+          } catch (err) {
+            console.log('Rewriter download progress event', e);
+          }
+        });
+      }
     });
-    console.log('✅ Chrome Rewriter initialized.');
 
-    chrome.storage.local.set({ fallbackActive: false });
-
+    console.log('Rewriter initialized.');
     return rewriter;
   } catch (err) {
-    console.error('❌ Rewriter initialization failed. Falling back to Gemini...', err);
-    await initializeGeminiFallback();
+    console.error("❌ Rewriter initialization failed:", err);
     return null;
   }
 }
@@ -172,50 +168,69 @@ async function rewriteSentence(sentence) {
   sentence = sentence.trim();
   if (rewriteCache.has(sentence)) return rewriteCache.get(sentence);
 
-  if (isUsingGeminiFallback && geminiClient) {
-    try {
-      const response = await geminiClient.models.generateContent({
-        model: "gemini-2.5-flash-lite",
-        config: {
-          systemInstruction:
-            "You ONLY REWRITE text to be NOT toxic/offensive, and be nicer. You also rewrite text to be shorter. Include NO FORMATTING.",
-        },
-        contents: sentence,
-      });
-
-      const rewritten = response.text?.trim() || sentence;
-      rewriteCache.set(sentence, rewritten);
-      return rewritten;
-    } catch (err) {
-      console.error("Gemini rewrite failed:", err);
-      rewriteCache.set(sentence, sentence);
-      return sentence;
-    }
-  }
-
   try {
     const rw = await initializeRewriter();
-    if (!rw && !isUsingGeminiFallback) {
+    if (rw) {
+      const rewritten = await rw.rewrite(sentence, {
+        context: "Rewrite so it's NOT toxic, ONLY be nicer."
+      });
+
+      if (rewritten.length > sentence.length * 3.5) {
+        const secondTry = await rw.rewrite(sentence, {
+          context: "ONLY SAY THE REWRITE NO INTRO OR LEAD-IN REMOVE TOXICNESS"
+        });
+
+        if (secondTry.length > sentence.length * 3.5) {
+          rewriteCache.set(sentence, "REMOVED HARMFUL TEXT");
+          return "REMOVED HARMFUL TEXT";
+        } else {
+          rewriteCache.set(sentence, secondTry);
+          return secondTry;
+        }
+      }
+
+      rewriteCache.set(sentence, rewritten);
+      return rewritten;
+    } else {
+      throw new Error("Rewriter unavailable");
+    }
+  } catch (rewriterError) {
+    console.warn("❌ Rewriter failed, falling back to Gemini:", rewriterError);
+
+    if (!geminiModel || !geminiApiKey) {
+      console.error("❌ Gemini model not available or API key missing.");
       rewriteCache.set(sentence, sentence);
       return sentence;
     }
 
-    if (isUsingGeminiFallback && geminiClient) {
-      return await rewriteSentence(sentence);
+    try {
+      const response = await geminiModel.generateContent({
+        model: "gemini-2.5-flash-lite",
+        config: {
+          systemInstruction: "You ONLY REWRITE text to be NOT toxic/offensive, and be nicer. You also rewrite text to be shorter. You include NO FORMATTING.",
+        },
+        contents: `Rewrite: ${sentence}`,
+      });
+
+      const rewritten = (response?.text || '').trim();
+
+      if (!rewritten || rewritten.length > sentence.length * 3.5) {
+        rewriteCache.set(sentence, "REMOVED HARMFUL TEXT");
+        return "REMOVED HARMFUL TEXT";
+      }
+
+      rewriteCache.set(sentence, rewritten);
+      console.log(`Gemini rewritten: "${sentence}" → "${rewritten}"`);
+      return rewritten;
+    } catch (geminiErr) {
+      console.error("❌ Gemini rewrite failed:", geminiErr);
+      rewriteCache.set(sentence, sentence);
+      return sentence;
     }
-
-    const rewritten = await rw.rewrite(sentence, {
-      context: "Rewrite so it's NOT toxic, ONLY be nicer."
-    });
-
-    rewriteCache.set(sentence, rewritten);
-    return rewritten;
-  } catch (err) {
-    console.error("❌ Rewrite failed:", err);
-    rewriteCache.set(sentence, sentence);
-    return sentence;
   }
 }
+
+
 
 async function processElement(el) {
   if (el.querySelector('.rewritten-toxic-sentence')) return;
@@ -264,6 +279,7 @@ async function processElement(el) {
       const rewritten = await rewriteSentence(sentence);
       if (rewritten && rewritten !== sentence) {
         await rewriteToxicText(el, sentence, rewritten);
+        console.log(`Replaced in DOM: "${sentence}" → "${rewritten}"`);
       }
     } else {
       rewriteCache.set(sentence, sentence);
@@ -349,6 +365,7 @@ function hasNewUnprocessedSentences() {
       if (!processed.has(s)) return true;
     }
   }
+
   return false;
 }
 
@@ -365,7 +382,9 @@ async function runTextRound() {
   }
 
   console.log(`✅ Finished text round ${roundNumber}...`);
-  setTimeout(() => removeLightBar(), 500);
+  setTimeout(() => {
+    removeLightBar();
+  }, 500);
 
   roundNumber++;
   isTextRoundInProgress = false;
@@ -387,27 +406,206 @@ function createLightBar() {
       lightBar.style.height = '50px';
       lightBar.style.zIndex = '9999';
       lightBar.style.pointerEvents = 'none';
+
       const startColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.7)`;
       const endColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`;
+
       lightBar.style.background = `linear-gradient(to bottom, ${startColor}, ${endColor})`;
+
       document.body.appendChild(lightBar);
+
+      const style = document.createElement('style');
+      style.id = 'extension-light-bar-style';
+      style.innerHTML = `
+        #extension-light-bar {
+          animation: glow 1.5s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+          0% {
+            background: linear-gradient(to bottom, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0));
+          }
+          50% {
+            background: linear-gradient(to bottom, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.7), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0));
+          }
+          100% {
+            background: linear-gradient(to bottom, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0));
+          }
+        }
+
+        .rewritten-toxic-sentence {
+          background: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05);
+          border-bottom: 1px dashed rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15);
+          padding: 0 2px;
+        }
+      `;
+      document.head.appendChild(style);
     });
   }
 }
 
 function removeLightBar() {
-  const bar = document.getElementById('extension-light-bar');
-  if (bar) bar.remove();
+  const lightBar = document.getElementById('extension-light-bar');
+  if (lightBar) {
+    lightBar.remove();
+  }
+  const style = document.getElementById('extension-light-bar-style');
+  if (style) style.remove();
+}
+
+function wrapImageIfNeeded(img) {
+  if (!img || !img.parentElement) return img;
+
+  if (img.parentElement.classList && img.parentElement.classList.contains('extension-image-wrapper')) {
+    return img.parentElement;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'extension-image-wrapper';
+  const computed = window.getComputedStyle(img);
+  if (computed.display === 'block') wrapper.style.display = 'block';
+  else wrapper.style.display = 'inline-block';
+
+  img.parentNode.replaceChild(wrapper, img);
+  wrapper.appendChild(img);
+  return wrapper;
+}
+
+function createImageLightBarElement(rgb) {
+  const bar = document.createElement('div');
+  bar.className = 'extension-image-lightbar';
+  const startColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.7)`;
+  const endColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`;
+  bar.style.background = `linear-gradient(to bottom, ${startColor}, ${endColor})`;
+  bar.dataset.extensionCreatedAt = Date.now();
+  return bar;
+}
+
+async function ensureImageLightBarFor(img) {
+  if (!img) return null;
+
+  let wrapper = img.parentElement;
+  if (!wrapper || !wrapper.classList || !wrapper.classList.contains('extension-image-wrapper')) {
+    wrapper = wrapImageIfNeeded(img);
+  }
+
+  let existing = wrapper.querySelector('.extension-image-lightbar');
+  if (existing) return existing;
+
+  let rgb = globalRGB;
+  if (!rgb) {
+    rgb = await new Promise((resolve) => {
+      chrome.storage.local.get(['lightBarColor'], (data) => {
+        const hex = data && data.lightBarColor ? data.lightBarColor : '#008000';
+        resolve(hexToRgb(hex));
+      });
+    });
+    globalRGB = rgb;
+  }
+
+  const bar = createImageLightBarElement(rgb);
+  wrapper.insertBefore(bar, wrapper.firstChild);
+  return bar;
+}
+
+function removeImageLightBar(img) {
+  if (!img || !img.parentElement) return;
+  const wrapper = img.parentElement;
+  if (!wrapper.classList || !wrapper.classList.contains('extension-image-wrapper')) return;
+
+  const bar = wrapper.querySelector('.extension-image-lightbar');
+  if (bar) {
+    bar.style.transition = 'opacity 220ms ease-in-out';
+    bar.style.opacity = '0';
+    setTimeout(() => {
+      if (bar.parentElement) bar.remove();
+    }, 240);
+  }
+}
+
+function injectImageStyles() {
+  if (document.getElementById('image-blur-styles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'image-blur-styles';
+  style.textContent = `
+        .${BLURRED_CLASS} {
+            filter: blur(8px);
+            transition: filter 0.2s ease-in-out;
+        }
+        .${BLURRED_CLASS}:hover {
+            filter: none;
+        }
+        .${CHECKED_CLASS} {
+            /* no visual change */
+        }
+
+        .extension-image-wrapper {
+            position: relative;
+            display: inline-block;
+            line-height: 0;
+        }
+
+        .extension-image-lightbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 34px;
+            pointer-events: none;
+            z-index: 9999;
+            background: linear-gradient(to bottom, rgba(0,128,0,0.6), rgba(0,128,0,0));
+            animation: extension-image-glow 1.5s infinite ease-in-out;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+        }
+
+        @keyframes extension-image-glow {
+          0% {
+            opacity: 0.85;
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0.85;
+          }
+        }
+
+        .extension-image-wrapper img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+    `;
+  document.head.appendChild(style);
+}
+
+async function fetchImageAsBlob(src) {
+  try {
+    const response = await fetch(src);
+    if (!response.ok) {
+      console.warn(`Could not fetch image (CORS or other issue): ${src}`);
+      return null;
+    }
+    return await response.blob();
+  } catch (error) {
+    console.error(`Error fetching image: ${src}`, error);
+    return null;
+  }
 }
 
 async function createImageSession() {
-  if (isUsingGeminiFallback) {
-    console.log("🧩 Gemini fallback active — skipping image AI processing.");
+  if (!('LanguageModel' in self)) {
+    console.error("Prompt API is not available in this browser.");
     return;
   }
-  if (!('LanguageModel' in self)) return;
+
   const availability = await LanguageModel.availability();
-  if (availability === 'unavailable') return;
+  if (availability === 'unavailable') {
+    console.error("AI model is not available on this device.");
+    return;
+  }
 
   try {
     lmSession = await LanguageModel.create({
@@ -416,44 +614,201 @@ async function createImageSession() {
       initialPrompts: [
         {
           role: "system",
-          content: "Extract visible text. If none, respond 'NO TEXT'."
+          content: `You are a text extractor. For each image, extract any visible text. If no text is found, respond only with: NO TEXT.`
         }
       ]
     });
-    console.log("AI image session created.");
-  } catch (err) {
-    console.error("Failed to create AI image session:", err);
+    console.log("AI image session created successfully.");
+  } catch (error) {
+    console.error("Failed to create AI image session:", error);
   }
 }
 
-async function runImageRound() {
-  if (isUsingGeminiFallback) {
-    console.log("🧩 Gemini fallback active — skipping image round.");
+async function processImageWithAI(img) {
+  if (!img || !img.src) return;
+
+  try {
+    await ensureImageLightBarFor(img);
+  } catch (err) {
+    console.warn('Could not create image lightbar for', img, err);
+  }
+
+  if (img.classList.contains(BLURRED_CLASS) || img.classList.contains(CHECKED_CLASS)) {
+    removeImageLightBar(img);
     return;
   }
+
+  if (imageTextCache.has(img.src)) {
+    const cached = imageTextCache.get(img.src);
+    if (cached.decision === 'toxic') {
+      img.classList.add(BLURRED_CLASS);
+    } else {
+      img.classList.add(CHECKED_CLASS);
+    }
+    removeImageLightBar(img);
+    return;
+  }
+
+  if (lmSession && lmSession.inputQuota && lmSession.inputUsage !== undefined) {
+    try {
+      const usageRatio = lmSession.inputUsage / lmSession.inputQuota;
+      if (usageRatio > 0.05) {
+        console.log("Input quota exceeded 5%, destroying and creating a new image session.");
+        try { await lmSession.destroy(); } catch (e) { /* ignore */ }
+        lmSession = null;
+        await createImageSession();
+      }
+    } catch (err) {
+      console.warn("Could not read lmSession inputUsage/inputQuota:", err);
+    }
+  }
+
+  try {
+    const blob = await fetchImageAsBlob(img.src);
+    if (!blob) {
+      imageTextCache.set(img.src, { decision: 'no-text' });
+      img.classList.add(CHECKED_CLASS);
+      removeImageLightBar(img);
+      return;
+    }
+
+    const file = new File([blob], "image.jpg", { type: blob.type });
+
+    const prompt = [{
+      role: 'user',
+      content: [
+        { type: 'text', value: `Extract any text from the image. If there is no text, respond only with the words "NO TEXT".` },
+        { type: 'image', value: file }
+      ]
+    }];
+
+    if (!lmSession) await createImageSession();
+    if (!lmSession) {
+      console.error("No image session available.");
+      imageTextCache.set(img.src, { decision: 'error' });
+      img.classList.add(CHECKED_CLASS);
+      removeImageLightBar(img);
+      return;
+    }
+
+    const resultRaw = await lmSession.prompt(prompt);
+    const resultString = (typeof resultRaw === 'string') ? resultRaw.trim() : (resultRaw?.toString?.() || '').trim();
+    const cleanResultUpper = resultString.toUpperCase();
+
+    if (!resultString || cleanResultUpper === 'NO TEXT') {
+      console.log("Result: NO TEXT for image", img.src);
+      imageTextCache.set(img.src, { decision: 'no-text' });
+      img.classList.add(CHECKED_CLASS);
+      removeImageLightBar(img);
+      return;
+    }
+
+    const detectedText = resultString;
+    console.log("Detected Text (OCR):", detectedText);
+
+    const classification = await classifyDetectedText(detectedText);
+
+    if (classification.decision === 'toxic') {
+      console.log(`Image text classified as TOXIC (label=${classification.label}, score=${classification.score}) — blurring image.`);
+      img.classList.add(BLURRED_CLASS);
+      imageTextCache.set(detectedText, classification);
+      imageTextCache.set(img.src, classification);
+    } else if (classification.decision === 'safe' || classification.decision === 'no-text') {
+      console.log(`Image text classified as SAFE (${classification.label || 'none'}) — marking checked.`);
+      img.classList.add(CHECKED_CLASS);
+      imageTextCache.set(detectedText, classification);
+      imageTextCache.set(img.src, classification);
+    } else {
+      console.warn("Classification error — marking as checked.");
+      img.classList.add(CHECKED_CLASS);
+      imageTextCache.set(img.src, { decision: 'error' });
+    }
+
+    try {
+      if (lmSession && lmSession.inputUsage !== undefined && lmSession.inputQuota !== undefined) {
+        console.log(`Image session usage: ${lmSession.inputUsage}/${lmSession.inputQuota}`);
+      }
+    } catch (err) { /* ignore */ }
+
+    removeImageLightBar(img);
+
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "InvalidStateError")) {
+      console.error("Error processing image with AI:", img.src, error);
+    }
+    img.classList.add(CHECKED_CLASS);
+    imageTextCache.set(img.src, { decision: 'error' });
+    removeImageLightBar(img);
+  }
+}
+
+function findUnprocessedImages() {
+  return Array.from(document.querySelectorAll(`img:not(.${BLURRED_CLASS}):not(.${CHECKED_CLASS})`));
+}
+
+async function processImageGroup(group) {
+  await Promise.allSettled(group.map(processImageWithAI));
+}
+
+async function runImageRound() {
+  injectImageStyles();
   isImageRoundInProgress = true;
   console.log('🔎 Starting image round...');
+
+  const images = findUnprocessedImages();
+  if (images.length === 0) {
+    isImageRoundInProgress = false;
+    console.log('No new images this round.');
+    return;
+  }
+
+  const groups = chunk(images, 5);
+  for (const g of groups) {
+    await processImageGroup(g);
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  console.log('✅ Finished image round.');
   isImageRoundInProgress = false;
 }
 
 chrome.storage.local.get('isTheExtensionOn', (result) => {
   isTheExtensionOn = result.isTheExtensionOn;
+  console.log("Initial isTheExtensionOn:", isTheExtensionOn);
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.isTheExtensionOn) {
     isTheExtensionOn = changes.isTheExtensionOn.newValue;
+    console.log("isTheExtensionOn changed:", isTheExtensionOn);
   }
 });
 
 (async () => {
   if (isTheExtensionOn) {
-    try { await runTextRound(); } catch (err) { console.error(err); }
-    try { await runImageRound(); } catch (err) { console.error(err); }
+    try { await runTextRound(); } catch (err) { console.error('Error starting initial text round', err); }
+    try { await runImageRound(); } catch (err) { console.error('Error starting initial image round', err); }
   }
 
   setInterval(async () => {
-    if (!isTheExtensionOn || isTextRoundInProgress) return;
-    if (hasNewUnprocessedSentences()) await runTextRound();
+    if (!isTheExtensionOn) return;
+    if (isTextRoundInProgress) return;
+
+    const foundNew = hasNewUnprocessedSentences();
+    if (foundNew) {
+      console.log('New unprocessed text detected. Starting text round...');
+      await runTextRound();
+    }
+  }, 1000);
+
+  setInterval(async () => {
+    if (!isTheExtensionOn) return;
+    if (isImageRoundInProgress) return;
+
+    const newImages = findUnprocessedImages();
+    if (newImages.length > 0) {
+      console.log('New unprocessed images detected. Starting image round...');
+      await runImageRound();
+    }
   }, 1000);
 })();
