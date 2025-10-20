@@ -26,46 +26,6 @@ class PipelineSingleton {
   }
 }
 
-// class RewriterSingleton {
-//   static instance = null;
-
-//   static async getInstance() {
-//     if (this.instance) return this.instance;
-
-//     if (!('Rewriter' in self)) {
-//       console.warn("❌ Rewriter API not available");
-//       return null;
-//     }
-
-//     try {
-//       const availability = await Rewriter.availability();
-//       if (availability === 'unavailable') {
-//         console.warn("❌ Rewriter API unavailable");
-//         return null;
-//       }
-
-//       console.log("⏳ Initializing Rewriter...");
-//       this.instance = await Rewriter.create({
-//         sharedContext: "Rewriting toxic, offensive, or obscene text to be clean/harmless.",
-//         tone: "more-casual",
-//         format: "plain-text",
-//         length: "shorter",
-//         monitor(m) {
-//           m.addEventListener("downloadprogress", (e) => {
-//             console.log(`📦 Rewriter download: ${Math.floor((e.loaded / e.total) * 100)}%`);
-//           });
-//         }
-//       });
-
-//       console.log("✅ Rewriter initialized");
-//       return this.instance;
-//     } catch (err) {
-//       console.error("❌ Failed to initialize Rewriter:", err);
-//       return null;
-//     }
-//   }
-// }
-
 async function preloadModels() {
   if (modelsPreloaded) {
     console.log("⚠️ Models already preloaded, skipping.");
@@ -75,7 +35,7 @@ async function preloadModels() {
   modelsPreloaded = true;
   console.log("🚀 Preloading models...");
   await PipelineSingleton.getInstance();
-  // await RewriterSingleton.getInstance();
+
 }
 
 chrome.runtime.onStartup.addListener(() => {
@@ -125,24 +85,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // if (message.action === 'rewrite') {
-  //   (async () => {
-  //     const rw = await RewriterSingleton.getInstance();
-  //     if (!rw) {
-  //       sendResponse("❌ Rewriter unavailable.");
-  //       return;
-  //     }
-
-  //     try {
-  //       const rewritten = await rw.rewrite(message.text, {
-  //         context: "Rewrite this to make it not toxic, offensive, or obscene."
-  //       });
-  //       sendResponse(rewritten);
-  //     } catch (err) {
-  //       console.error("❌ Rewrite failed:", err);
-  //       sendResponse("❌ Failed to rewrite.");
-  //     }
-  //   })();
-  //   return true;
-  // }
 });

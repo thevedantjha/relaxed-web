@@ -40,6 +40,15 @@ Make the internet a calmer place. Automatically rewrite toxic text, or blur imag
 
 > Only the contents in `build/` should be uploaded
 
+**‼️ IMPORTANT:**
+Go to `chrome://on-device-internals` and click on **Model Status**.
+    - If it says `Foundational model state: Ready`, the extension is ready.
+    - Otherwise, click on the extension and turn it on.
+        1. Extension cannot do anything yet since built-in AI isn't downloaded (unless used with cloud model).
+        2. This triggers Chrome built-in AI model download.
+        3. Check **Model Status** again a few moments later to see if it's ready.
+            - If it's ready, extension is ready to work.
+
 ---
 
 ## 🛠️ Editing the Extension Code / Build
