@@ -214,7 +214,7 @@ async function rewriteSentence(sentence) {
       const response = await geminiModel.generateContent({
         model: "gemini-2.5-flash-lite",
         config: {
-          systemInstruction: `You ONLY REWRITE text to be NOT toxic/offensive, and be nicer. You also rewrite text to be shorter and ${toneSetting}. Include NO FORMATTING.`,
+          systemInstruction: `You ONLY REWRITE text to be NOT toxic/offensive, and be nicer. You also rewrite text to be shorter. Include NO FORMATTING.`,
         },
         contents: `Rewrite: ${sentence}`,
       });
