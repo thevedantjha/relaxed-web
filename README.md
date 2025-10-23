@@ -1,3 +1,5 @@
+<img src="icon.png" alt="Relaxed Web" width="100">
+
 # Relaxed Web
 Make the internet a calmer place. Automatically rewrite toxic text, or blur images with unfriendly text thanks to Chrome built-in AI, private with all processing on-device. Implement a hybrid strategy with cloud based Gemini AI for fallback during unavailability.
 
@@ -77,7 +79,7 @@ To make changes to the extension's code:
     - No data collection.
 - Otherwise ONLY if using cloud based hybrid fallback strategy:
     - Toxic classified text is sent to Google Gemini servers.
-    - View how your date is being used: [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms#data-use-paid)
+    - View how your data is being used: [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms#data-use-paid)
 
 ---
 
