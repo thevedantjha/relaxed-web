@@ -1,9 +1,14 @@
-<table>
+<table style="border: none; border-collapse: collapse;">
   <tr>
-    <td><img src="public/icons/icon.png" width="50" /></td>
-    <td><h1>Relaxed Web</h1></td>
+    <td style="border: none; vertical-align: middle;">
+      <img src="public/icons/icon.png" width="50" />
+    </td>
+    <td style="border: none; vertical-align: middle;">
+      <h1>Relaxed Web</h1>
+    </td>
   </tr>
 </table>
+
 
 Make the internet a calmer place. Automatically rewrite toxic text, or blur images with unfriendly text thanks to Chrome built-in AI, private with all processing on-device. Implement a hybrid strategy with cloud based Gemini AI for fallback during unavailability.
 
