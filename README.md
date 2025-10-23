@@ -1,6 +1,4 @@
-<img src="public/icons/icon.png" alt="Relaxed Web" width="100">
-
-# Relaxed Web
+# <img src="public/icons/icon.png" alt="Relaxed Web" height="32" /> Relaxed Web
 Make the internet a calmer place. Automatically rewrite toxic text, or blur images with unfriendly text thanks to Chrome built-in AI, private with all processing on-device. Implement a hybrid strategy with cloud based Gemini AI for fallback during unavailability.
 
 ---
